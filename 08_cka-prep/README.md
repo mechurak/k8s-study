@@ -12,14 +12,14 @@
 
 ## 준비 체크리스트
 
-- [ ] kubectl alias/단축키 셋업 (`alias k=kubectl`, 자동완성)
-- [ ] `--dry-run=client -o yaml`로 매니페스트 빠르게 생성하는 습관
-- [ ] `kubectl explain`으로 필드 찾기
-- [ ] 공식 문서 북마크 — 시험 중 kubernetes.io 열람 허용
-- [ ] imperative 명령 숙달 (run/create/expose/scale/set)
-- [ ] 컨텍스트 전환 (`kubectl config use-context`) — 문제마다 클러스터 다름
-- [ ] killer.sh 2세션 풀고 오답 복습
-- [ ] killercoda CKA 시나리오 반복
+- kubectl alias/단축키 셋업 (`alias k=kubectl`, 자동완성)
+- `--dry-run=client -o yaml`로 매니페스트 빠르게 생성하는 습관
+- `kubectl explain`으로 필드 찾기
+- 공식 문서 북마크 — 시험 중 kubernetes.io 열람 허용
+- imperative 명령 숙달 (run/create/expose/scale/set)
+- 컨텍스트 전환 (`kubectl config use-context`) — 문제마다 클러스터 다름
+- killer.sh 2세션 풀고 오답 복습
+- killercoda CKA 시나리오 반복
 
 ## 자주 쓰는 단축 셋업
 

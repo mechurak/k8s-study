@@ -2,17 +2,16 @@
 
 업무에서 운영하는 **관리형 k8s(EKS)** 실무 메모. CKA의 vanilla k8s와 다른 점(관리형 control plane, AWS 통합)에 집중.
 
-## 학습 목표
-
-- [ ] EKS 아키텍처 — 관리형 control plane vs 데이터플레인(노드그룹/Fargate)
-- [ ] 클러스터 생성 — `eksctl`, Terraform, 콘솔
-- [ ] 인증/인가 — IAM ↔ k8s RBAC 매핑, **IRSA**(IAM Roles for Service Accounts), EKS Pod Identity
-- [ ] 네트워킹 — VPC CNI, 보안그룹, LoadBalancer ↔ AWS LB Controller
-- [ ] 스토리지 — EBS / EFS CSI 드라이버
-- [ ] 노드 관리 — Managed Node Group, Karpenter, 오토스케일링
-- [ ] 업그레이드 전략 (control plane / 노드)
-- [ ] 관측성 — CloudWatch, Container Insights
-- [ ] 비용 관리 ⚠️
+## 다루는 내용
+- EKS 아키텍처 — 관리형 control plane vs 데이터플레인(노드그룹/Fargate)
+- 클러스터 생성 — `eksctl`, Terraform, 콘솔
+- 인증/인가 — IAM ↔ k8s RBAC 매핑, **IRSA**(IAM Roles for Service Accounts), EKS Pod Identity
+- 네트워킹 — VPC CNI, 보안그룹, LoadBalancer ↔ AWS LB Controller
+- 스토리지 — EBS / EFS CSI 드라이버
+- 노드 관리 — Managed Node Group, Karpenter, 오토스케일링
+- 업그레이드 전략 (control plane / 노드)
+- 관측성 — CloudWatch, Container Insights
+- 비용 관리 ⚠️
 
 ## 빠른 시작 / 정리
 

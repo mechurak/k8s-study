@@ -2,20 +2,17 @@
 
 k8s를 다루기 위한 가장 기본이 되는 오브젝트와 `kubectl` 사용법. 이후 모든 주제의 토대.
 
-## 학습 목표
+> 📘 **실습은 [practice.md](./practice.md)** 가이드를 따라 직접 진행한다.
 
-- [ ] 클러스터 구조 개요 (control plane vs node, 핵심 컴포넌트)
-- [ ] `kubectl` 기본 (get/describe/apply/delete, `-o yaml`, `--dry-run=client`)
-- [ ] Pod — 라이프사이클, 컨테이너/사이드카, probe(liveness/readiness/startup)
-- [ ] Label & Selector, Annotation
-- [ ] Namespace
-- [ ] ReplicaSet
-- [ ] Deployment — 롤아웃/롤백, 전략(RollingUpdate/Recreate)
-- [ ] 매니페스트(YAML) 구조와 `apiVersion/kind/metadata/spec`
+## 다루는 내용
 
-## 정리
+주제별 개념 문서로 정리돼 있다.
 
-> (학습하며 채워나갈 자리)
+- **[클러스터 구조](./cluster-architecture.md)** — control plane vs node, 핵심 컴포넌트
+- **[kubectl 기본 & 매니페스트 구조](./kubectl-basics.md)** — 명령 구조, imperative vs declarative, `--dry-run`, `explain`, `apiVersion/kind/metadata/spec`
+- **[Pod](./pods.md)** — 라이프사이클, probe, 멀티 컨테이너
+- **[ReplicaSet & Deployment](./deployments.md)** — 자기복구, 롤아웃/롤백, 업데이트 전략
+- **[Label·Selector & Namespace](./labels-namespaces.md)** — 리소스 분류와 격리
 
 ## 실습 매니페스트
 

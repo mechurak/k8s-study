@@ -39,6 +39,7 @@ spec:
 
 - **자기복구**: Pod가 삭제/장애로 줄면 RS가 즉시 새 Pod를 만들어 replicas를 맞춘다.
 - **ownerReferences**: RS가 만든 Pod에는 소유자(`ReplicaSet/...`)가 박힌다. 독립 Pod(소유자 없음)는 지우면 안 살아난다 — 이게 "컨트롤러로 관리하라"는 이유.
+  - `kubectl describe pod`의 **`Controlled By: ReplicaSet/...`** 줄이 바로 이 값의 읽기 쉬운 표현(`controller: true`인 소유자). 독립 Pod엔 이 줄이 없다.
 - **selector ↔ template.labels는 반드시 일치**해야 한다(안 맞으면 생성 거부/오작동).
 
 ## Deployment

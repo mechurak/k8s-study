@@ -1,12 +1,13 @@
 # 02. 핵심 개념 — 실습 가이드
 
-> 이 문서는 **직접 따라 하며 실행**하는 실습 가이드다. 명령을 본인이 치고, 결과를 관찰하고, 배운 점은 [README의 정리 섹션](./README.md#정리)에 본인 언어로 적는다.
+> 이 문서는 **직접 따라 하며 실행**하는 실습 가이드다. 명령을 본인이 치고, 결과를 관찰하며 손에 익힌다. 개념 설명은 [README의 개념 문서들](./README.md#다루는-내용)에서 확인한다.
 > 각 단계의 🔎는 **관찰 포인트**, 🧪는 **스스로 해볼 과제**다.
 
 ## 사전 준비
 
+클러스터가 떠 있어야 한다. 실습 환경(colima·kind 등) 준비/시작은 [`01_lab-environment`](../01_lab-environment/) 참고.
+
 ```bash
-colima start          # 환경 시작 (VM 처음 만들 때만 사양 플래그 필요)
 kubectl get nodes     # 노드가 Ready인지 확인
 cd 02_core-concepts
 ```
@@ -67,14 +68,19 @@ kubectl get pod -l app=nginx
 
 ```bash
 # 5) [대조 실험] 컨트롤러 유무 차이 — ownerReferences 비교
+# (가) 독립 Pod nginx → 소유자 없음 → []
 kubectl get pod nginx -o jsonpath='{.metadata.ownerReferences}'; echo
-kubectl get pod -l app=nginx -o jsonpath='{.items[0].metadata.ownerReferences}'; echo
+# (나) Deployment가 만든 Pod(위 목록의 해시 붙은 이름) 하나 → 소유자 = ReplicaSet
+kubectl get pod <해시-붙은-Pod-이름> -o jsonpath='{.metadata.ownerReferences}'; echo
+```
+🔎 독립 Pod(`nginx`)의 `ownerReferences`는 비어있고, Deployment Pod는 `ReplicaSet/...`가 들어있다.
+💡 `kubectl describe pod <이름>`의 **`Controlled By`** 줄에서도 같은 정보를 더 읽기 쉽게 볼 수 있다(Deployment Pod엔 `ReplicaSet/...`, 독립 Pod엔 그 줄이 없음).
 
-# 6) 독립 Pod를 지워본다
+```bash
+# 6) 독립 Pod를 지워본다 (컨트롤러가 없으니 안 살아남)
 kubectl delete pod nginx
 kubectl get pod -l app=nginx
 ```
-🔎 독립 Pod(`nginx`)의 `ownerReferences`는 비어있고, Deployment Pod는 `ReplicaSet/...`가 들어있다.
 🔎 독립 Pod는 지우면 다시 살아나는가? Deployment Pod와 왜 다른가?
 🧪 이 차이로부터 "실무에선 왜 Pod를 직접 만들지 않고 Deployment를 쓰는가"를 한 문장으로 정리해보자.
 
@@ -95,16 +101,16 @@ kubectl get deploy nginx                    # READY 3/3 확인
 ## 마무리
 
 ```bash
-# 실습 리소스 정리
+# 실습 리소스 정리 — manifests/ 폴더의 모든 yaml이 정의한 리소스를 삭제
+# (-f 는 폴더도 받음 / --ignore-not-found: 이미 없는 건 에러 없이 넘어감 = 멱등)
 kubectl delete -f manifests/ --ignore-not-found
-
-# 또는 환경만 끄고 클러스터는 보존
-colima stop
 ```
 
-## 정리
+> 환경(런타임/클러스터)을 끄는 방법은 [`01_lab-environment`](../01_lab-environment/) 참고. 보통은 리소스만 정리하면 충분하다.
 
-핵심 개념 정리는 **[README의 정리 섹션](./README.md#정리)** 에 있다(개념 설명 + 명령 요약). 위 실습에서 직접 관찰한 것과 대조하며 체득하자.
+## 개념 정리는?
+
+이 실습에서 다룬 개념(Pod·라이프사이클·ReplicaSet/Deployment·자기복구·스케일링)은 **[개념 문서들](./README.md#다루는-내용)** 에 정리돼 있다. 위에서 직접 관찰한 것과 대조하며 체득하자.
 
 ## 다음 실습 거리
 

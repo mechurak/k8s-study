@@ -1,4 +1,5 @@
 # ReplicaSet을 통해 Pod 3개를 관리하는 Deployment
+# 📖 Deployment: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
 # 실습: kubectl apply -f deployment.yaml
 #       kubectl get deploy,rs,pod -l app=nginx
 #       kubectl scale deploy/nginx --replicas=5

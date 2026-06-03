@@ -1,0 +1,26 @@
+# ReplicaSet을 통해 Pod 3개를 관리하는 Deployment
+# 실습: kubectl apply -f deployment.yaml
+#       kubectl get deploy,rs,pod -l app=nginx
+#       kubectl scale deploy/nginx --replicas=5
+#       kubectl rollout status deploy/nginx
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27
+          ports:
+            - containerPort: 80

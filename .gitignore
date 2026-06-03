@@ -1,0 +1,11 @@
+# macOS
+.DS_Store
+
+# 에디터
+.vscode/
+.idea/
+*.swp
+
+# kube 임시/로컬 설정
+*.kubeconfig
+kubeconfig

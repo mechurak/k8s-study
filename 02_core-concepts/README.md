@@ -2,7 +2,9 @@
 
 k8s를 다루기 위한 가장 기본이 되는 오브젝트와 `kubectl` 사용법. 이후 모든 주제의 토대.
 
-> 📘 **실습은 [practice.md](./practice.md)** 가이드를 따라 직접 진행한다.
+> 📘 **실습 가이드**를 따라 직접 진행한다 (길어서 둘로 나눔):
+> - **[practice1.md](./practice1.md)** — Pod 라이프사이클, 접속(exec·port-forward), Deployment 자기복구, 스케일링
+> - **[practice2.md](./practice2.md)** — dry-run으로 매니페스트 만들기, Namespace, 롤아웃/롤백 (+선택: probe, 클러스터 둘러보기)
 
 ## 다루는 내용
 

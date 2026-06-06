@@ -1,7 +1,8 @@
-# 02. 핵심 개념 — 실습 가이드
+# 02. 핵심 개념 — 실습 ① (Pod·Deployment 기본)
 
 > 이 문서는 **직접 따라 하며 실행**하는 실습 가이드다. 명령을 본인이 치고, 결과를 관찰하며 손에 익힌다. 개념 설명은 [README의 개념 문서들](./README.md#다루는-내용)에서 확인한다.
 > 각 단계의 🔎는 **관찰 포인트**, 🧪는 **스스로 해볼 과제**다.
+> 이어지는 운영 심화(dry-run·Namespace·롤아웃/롤백)는 **[practice2.md](./practice2.md)** 에 있다.
 
 ## 사전 준비
 
@@ -44,7 +45,58 @@ kubectl wait --for=condition=Ready pod/nginx --timeout=60s
 
 ---
 
-## 실습 2 — Deployment & 자기복구(self-healing)
+## 실습 2 — Pod에 접속해서 직접 확인 (exec · port-forward)
+
+실습 1에서 띄운 `nginx` Pod가 **진짜 도는지** 두 방향에서 만져본다: **안으로 들어가기**(exec)와 **밖에서 접속하기**(port-forward).
+
+### (가) 컨테이너 안으로 — `kubectl exec`
+
+```bash
+kubectl exec -it nginx -- bash      # 컨테이너 안 셸로 진입 (bash 없으면 -- sh)
+# ↓ 아래는 '컨테이너 안'에서 실행
+curl -s localhost | head            # nginx가 자기 자신에게 응답하나
+exit                                # 빠져나오기
+```
+🔎 진입하면 프롬프트가 바뀐다(컨테이너 안). 여기서 `localhost`는 이제 **그 컨테이너 자신**이다. `-it`는 `-i`(stdin 유지)+`-t`(tty)로, 대화형 셸에 필요.
+💡 셸 없이 **명령 하나만** 실행도 된다: `kubectl exec nginx -- nginx -v` (`--` 뒤가 컨테이너에서 돌 명령).
+
+### (나) 내 노트북에서 접속 — `kubectl port-forward`
+
+```bash
+kubectl port-forward pod/nginx 8080:80   # 로컬 8080 → Pod의 80 (터널, 이 터미널은 포그라운드로 점유됨)
+```
+**다른 터미널**을 열어서:
+```bash
+curl -s localhost:8080 | head            # "Welcome to nginx!" 가 보이면 성공
+```
+브라우저로 http://localhost:8080 을 열면 **nginx 환영 페이지**가 뜬다. 끝내려면 port-forward 터미널에서 `Ctrl+C`.
+
+🔎 실습 1의 `-o wide`로 본 **Pod IP(예: `10.244.x.x`)로 브라우저에서 바로 못 들어가는 이유**는?
+그 IP는 **클러스터 내부 네트워크**다. kind 클러스터는 도커 컨테이너 안에서 돌기 때문에 macOS 호스트에선 그 IP에 직접 닿지 못한다. `port-forward`는 apiserver를 거쳐 뚫는 **임시 터널**일 뿐. → "외부에서 안정적으로 접근"하려면 결국 **Service/Ingress**가 필요하다(→ [`04_services-networking`](../04_services-networking/)).
+
+> ⚠️ **port-forward는 "서비스 노출"이 아니다.** 클러스터엔 아무것도 안 만들고, **kubectl을 켠 내 PC에서 나만**, 켜둔 동안만 쓰는 **개인 디버그 터널**이다(apiserver 경유, Pod 1개로). 반면 **NodePort**는 실제 Service 오브젝트라 **모든 노드의 포트**를 열어 누구나 접속·로드밸런싱되고 영속한다. 외부 노출 사다리(ClusterIP→NodePort→LoadBalancer→Ingress)는 [`04_services-networking`](../04_services-networking/)에서 다룬다.
+
+🧪 (대조 실험) 클러스터 **안**에선 Pod IP로 바로 될까? 임시 파드를 띄워 확인:
+```bash
+IP=$(kubectl get pod nginx -o jsonpath='{.status.podIP}')   # Pod IP를 변수에
+kubectl run tmp --rm -i --restart=Never --image=busybox -- wget -qO- "$IP" | head
+# --rm: 끝나면 자동 삭제 / 클러스터 안에서는 Pod IP로 바로 응답이 온다
+```
+🔎 같은 IP인데 **안에선 되고 밖(호스트)에선 안 된다** — Pod IP가 "내부 전용"임을 직접 확인하는 셈.
+
+### exec vs port-forward vs debug — 언제 뭘?
+
+| 하고 싶은 것 | 명령 | 메모 |
+|---|---|---|
+| 컨테이너 **안에서** 명령/셸 | `kubectl exec -it <pod> -- sh` | 가장 흔함. 안에서 둘러보기·로그 위치 확인 등 |
+| 밖에서 그 **포트에 접속** | `kubectl port-forward <pod> 8080:80` | 빠른 단발 접근(개발·디버깅). Service 없이도 가능 |
+| 셸 **없는** 이미지·**노드** 디버깅 | `kubectl debug ...` | distroless 등 `exec`가 안 될 때. 임시 디버그 컨테이너 부착 → [`07_troubleshooting`](../07_troubleshooting/) |
+
+> `debug`는 nginx처럼 셸 있는 이미지엔 필요 없다. **셸 없는 최소 이미지**(distroless)나 **노드 자체**를 들여다볼 때 쓰는 한 단계 위 도구라, 지금은 "이런 게 있다"만 알아두면 된다.
+
+---
+
+## 실습 3 — Deployment & 자기복구(self-healing)
 
 ```bash
 # 1) Deployment 생성 (Pod 3개를 관리)
@@ -86,7 +138,7 @@ kubectl get pod -l app=nginx
 
 ---
 
-## 실습 3 — 스케일링
+## 실습 4 — 스케일링
 
 ```bash
 kubectl scale deploy/nginx --replicas=5     # 늘리기
@@ -112,7 +164,11 @@ kubectl delete -f manifests/ --ignore-not-found
 
 이 실습에서 다룬 개념(Pod·라이프사이클·ReplicaSet/Deployment·자기복구·스케일링)은 **[개념 문서들](./README.md#다루는-내용)** 에 정리돼 있다. 위에서 직접 관찰한 것과 대조하며 체득하자.
 
-## 다음 실습 거리
+## 다음 — 실습 ②로
 
-- Deployment **롤아웃/롤백**: 이미지 버전 변경(`kubectl set image ...`) → `kubectl rollout status/history/undo`
-- **probe**(liveness/readiness), **Namespace**, `--dry-run=client -o yaml`로 매니페스트 생성하기
+CKA에서 매 문제 쓰는 운영 기술은 **[practice2.md](./practice2.md)** 에서 이어 한다:
+
+- ⭐ `--dry-run=client -o yaml`로 **매니페스트 빠르게 만들기** (imperative → yaml)
+- **Namespace** — 격리해서 작업하고 통째로 정리
+- Deployment **롤아웃/롤백** (`set image` → `rollout status/history/undo`)
+- (선택) **probe**(liveness/readiness), 클러스터 구조 둘러보기

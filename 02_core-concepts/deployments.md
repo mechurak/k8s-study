@@ -92,7 +92,26 @@ kubectl rollout undo     deployment/nginx     # 직전 리비전으로 롤백
 kubectl rollout undo     deployment/nginx --to-revision=2
 ```
 - Deployment는 리비전을 보관(`revisionHistoryLimit`, 기본 10)해서 롤백이 가능하다.
-- 롤백 = 이전 ReplicaSet으로 다시 스케일 전환.
+- 롤백 = 이전 ReplicaSet으로 다시 스케일 전환. `undo`는 그 RS를 **재승격**하며 리비전 번호를 최신으로 새로 받으므로, 이력에서 **중간 번호가 비어 보일 수 있다**(예: 1, 3, 4) — 정상.
+
+### CHANGE-CAUSE — 변경 이유 기록
+
+`rollout history`의 **CHANGE-CAUSE 열**은 Deployment의 `kubernetes.io/change-cause` 어노테이션 값에서 온다. 안 남기면 `<none>`이라, **변경 직후** 이유를 적어둔다:
+
+```bash
+kubectl set image deployment/nginx nginx=nginx:1.28
+kubectl annotate deployment/nginx kubernetes.io/change-cause="bump nginx to 1.28" --overwrite
+```
+- 예전 `kubectl ... --record`로 자동 기록하던 방식은 **deprecated** → 위처럼 annotation으로 직접 남긴다.
+- `--overwrite`: 롤아웃마다 갱신하니 보통 키가 이미 있어, 덮어쓰기를 명시해야 한다(없으면 에러).
+- 어노테이션만 다는 건 `spec.template` 변경이 아니라 **새 리비전을 만들지 않는다**(이유 메모일 뿐). → annotation 개념은 [labels-namespaces.md](./labels-namespaces.md).
+
+> ⚠️ **함정**: change-cause는 새 리비전이 생길 때 **"그 시점 Deployment에 박힌 값"을 그 RS에 복사**한다. 변경마다 갱신하지 않으면 이후 리비전들이 **옛 값을 그대로 물려받아** 전부 똑같이 보인다(예: 깨진 이미지로 롤아웃했는데 라벨은 직전 그대로). 롤백을 포함해 **변경마다 새로 적어야** 의미가 있다.
+>
+> 💡 그래서 change-cause 텍스트만으론 못 믿을 때가 많다. **그 리비전이 실제로 뭐였는지**(이미지 등)는 템플릿을 직접 본다:
+> ```bash
+> kubectl rollout history deployment/web --revision=3   # 그 리비전의 Pod 템플릿(이미지 포함)
+> ```
 
 ## 업데이트 전략 (`spec.strategy`)
 

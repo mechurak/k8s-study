@@ -58,6 +58,8 @@ metadata:
 | `kube-public` | 모두 읽기 가능한 공개용 |
 | `kube-node-lease` | 노드 heartbeat(lease) |
 
+> ⚠️ 이 **4개는 시스템(예약) 네임스페이스 — 삭제하지 말 것.** 특히 `default`엔 apiserver로 가는 `kubernetes` Service와 각 ns에 자동 생성되는 `default` ServiceAccount가 얽혀 있어, 지우면 `Terminating`에 걸리거나 클러스터가 이상해질 수 있다. `delete ns`로 통째 정리하는 건 **직접 만든 실습용 ns에만** 적용한다.
+
 ```bash
 kubectl get ns
 kubectl create namespace dev

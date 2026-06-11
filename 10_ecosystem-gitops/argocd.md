@@ -26,6 +26,18 @@ flowchart LR
 - **드리프트 감지/교정**: 누가 클러스터를 손으로 바꾸면 ArgoCD가 `OutOfSync`로 표시하고, `selfHeal`이면 Git 상태로 되돌린다.
 - **감사/일관성**: "지금 클러스터에 뭐가 떠 있나?"의 답이 곧 "Git의 그 커밋".
 
+> **"Git"은 우리가 아는 그 Git이다.** GitHub/GitLab에 `git push` 하는 평범한 Git을 **배포의 중심**에 둔 것뿐이다. 새 도구를 배우는 게 아니라, 이미 잘 쓰는 Git의 기능이 그대로 배포 기능이 된다:
+>
+> | Git의 평범한 기능 | GitOps에서의 의미 |
+> |---|---|
+> | commit 히스토리 | **누가·언제·왜 배포를 바꿨나** 감사 로그가 그냥 생김 |
+> | `git revert` | **롤백 = 이전 커밋으로 되돌리기** (kubectl 없이) |
+> | Pull Request / 리뷰 | **배포 승인 절차**가 코드 리뷰와 똑같아짐 |
+> | branch | dev/staging/prod 환경 분리 |
+> | diff | "지금 클러스터 ≠ Git"을 ArgoCD가 보여주는 그 `OutOfSync` diff |
+>
+> 그래서 "Git이 단일 소스"라는 말은 **"클러스터를 손으로 바꾸지 마라(`kubectl apply` 직접 금지)"** 와 짝이다. 손으로 바꾸면 Git과 클러스터가 어긋나고, 그게 바로 `selfHeal`이 되돌리는 상황·`OutOfSync` 진단으로 이어진다.
+
 ---
 
 ## 핵심 구성요소

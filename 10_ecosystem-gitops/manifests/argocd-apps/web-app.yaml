@@ -1,0 +1,23 @@
+# ArgoCD Application — web(nginx) 워크로드를 이 Git 저장소에서 동기화
+# 📖 Application: https://argo-cd.readthedocs.io/en/stable/user-guide/application-specification/
+# 적용: kubectl apply -f web-app.yaml   (ArgoCD가 설치된 argocd 네임스페이스에 만든다)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: web
+  namespace: argocd                 # Application 리소스 자체는 argocd 네임스페이스에 산다
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/mechurak/k8s-study.git
+    targetRevision: main
+    path: 10_ecosystem-gitops/manifests/web    # 이 디렉토리의 모든 매니페스트를 적용
+  destination:
+    server: https://kubernetes.default.svc      # 같은(in-cluster) 클러스터
+    namespace: web                              # 배포 대상 네임스페이스
+  syncPolicy:
+    automated:                      # 자동 동기화
+      prune: true                   # Git에서 지워진 리소스는 클러스터에서도 삭제
+      selfHeal: true                # 클러스터에서 수동 변경되면 Git 상태로 되돌림
+    syncOptions:
+      - CreateNamespace=true        # 대상 네임스페이스가 없으면 ArgoCD가 생성

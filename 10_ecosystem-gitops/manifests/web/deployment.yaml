@@ -1,0 +1,32 @@
+# ArgoCD가 Git에서 동기화하는 데모 워크로드 (nginx Pod 3개)
+# 📖 Deployment: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+# 이 파일은 직접 apply하지 않는다 — ArgoCD Application(web)이 이 디렉토리를 보고 배포한다.
+# GitOps 실험: 이 파일의 replicas를 바꿔 git push → ArgoCD가 자동 동기화하는지 관찰.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

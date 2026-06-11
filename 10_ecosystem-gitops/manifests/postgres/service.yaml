@@ -1,0 +1,18 @@
+# PostgreSQL용 Headless Service (clusterIP: None)
+# 📖 Headless Service: https://kubernetes.io/docs/concepts/services-networking/service/#headless-services
+# StatefulSet에 안정적인 네트워크 ID를 준다 → Pod DNS: postgres-0.postgres.database.svc.cluster.local
+# 앱은 보통 Service 이름(postgres)으로 접속한다: postgres.database.svc.cluster.local:5432
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  clusterIP: None          # headless — kube-proxy 로드밸런싱 없이 Pod DNS를 직접 노출
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432

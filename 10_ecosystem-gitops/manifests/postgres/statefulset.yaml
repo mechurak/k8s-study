@@ -1,0 +1,70 @@
+# PostgreSQL 단일 인스턴스 (StatefulSet + PVC로 데이터 영속화)
+# 📖 StatefulSet: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/
+# DB는 상태(데이터)를 가지므로 Deployment가 아니라 StatefulSet으로 띄운다:
+#   - 안정적 이름(postgres-0) + 안정적 스토리지(volumeClaimTemplates로 Pod마다 전용 PVC)
+#   - Pod가 재생성돼도 같은 PVC를 다시 붙여 데이터가 보존된다.
+# kind 기본 StorageClass(standard, local-path)를 사용 → storageClassName 생략.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  serviceName: postgres        # 위 headless Service 이름과 일치해야 한다
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: app
+            - name: POSTGRES_DB
+              value: appdb
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: POSTGRES_PASSWORD
+            # 볼륨 루트에 lost+found 등이 생겨도 initdb가 실패하지 않도록 하위 디렉토리를 데이터 경로로 지정
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:               # 연결 받을 준비가 됐는지 — Service 엔드포인트 편입 조건
+            exec:
+              command: ["pg_isready", "-U", "app", "-d", "appdb"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:                # 죽었으면 재시작
+            exec:
+              command: ["pg_isready", "-U", "app", "-d", "appdb"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+  volumeClaimTemplates:                 # Pod마다 전용 PVC를 자동 생성 (postgres-0 → data-postgres-0)
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

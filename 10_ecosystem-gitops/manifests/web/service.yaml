@@ -1,0 +1,17 @@
+# web Deployment를 클러스터 내부에 노출하는 ClusterIP Service
+# 📖 Service: https://kubernetes.io/docs/concepts/services-networking/service/
+# 확인: kubectl -n web port-forward svc/web 8080:80  → http://localhost:8080
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  type: ClusterIP
+  selector:
+    app: web
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80

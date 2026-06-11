@@ -1,0 +1,23 @@
+# ArgoCD Application — PostgreSQL(StatefulSet)을 이 Git 저장소에서 동기화
+# 📖 Application: https://argo-cd.readthedocs.io/en/stable/user-guide/application-specification/
+# 적용: kubectl apply -f postgres-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgres
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/mechurak/k8s-study.git
+    targetRevision: main
+    path: 10_ecosystem-gitops/manifests/postgres
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: database
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

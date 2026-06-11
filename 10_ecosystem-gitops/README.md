@@ -14,6 +14,7 @@ CKA 시험 범위는 아니지만 **실무에서 흔히 쓰는 생태계 도구*
 - (실무) EKS + ArgoCD, Secret 관리(평문 금지), SSO/RBAC
 
 **실습** → [practice.md](./practice.md): ArgoCD 설치 → guestbook 체험 → 내 저장소로 nginx 배포 → PostgreSQL(StatefulSet) 배포 → GitOps 워크플로(push·self-heal·prune) 실험.
+**운영 레시피** → [recipes.md](./recipes.md): 개발·운영하며 자주 하는 작업(예: 개발 중 DB 초기화) 모음.
 
 ### (추후) 더 볼 것
 - Flux (ArgoCD 대안 GitOps)

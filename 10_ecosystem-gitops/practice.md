@@ -123,12 +123,17 @@ git push
 
 ### Application 적용
 
-선언형으로, Application CR 자체를 apply한다(이것이 GitOps의 진입점).
+선언형으로, Application CR 자체를 등록한다(이것이 GitOps의 진입점 — 이게 무슨 뜻인지는 아래 박스 참고).
 ```bash
 kubectl apply -f 10_ecosystem-gitops/manifests/argocd-apps/web-app.yaml
 
 argocd app get web        # 또는 UI에서 web 카드 클릭
 ```
+
+> 🖱️ **UI로 등록해도 같다 (사내에서 흔한 방식).** `kubectl` 대신 **+ NEW APP → EDIT AS YAML → `web-app.yaml` 내용 붙여넣기 → CREATE** 로 등록해도 **클러스터에 생기는 Application 객체는 동일**하다. 통로만 UI(argocd-server 경유)일 뿐. 회사에서는 보통 개발자에게 운영 클러스터 kubectl 자격증명 대신 **SSO로 UI만 열어주고**, ArgoCD RBAC로 통제하려고 이 방식을 가이드한다. 자세한 비교와 주의점(등록은 일회성 → App of Apps로 자동화)은 [argocd.md의 "실무 메모"](./argocd.md#실무-메모--application을-등록하는-방법과-사내-흔한-패턴) 참고.
+
+> 📌 **"Application을 등록한다"는 건** nginx를 직접 띄우는 게 아니라, "이 Git 경로(`manifests/web`)를 보고 배포하라"는 **지시서(Application)를 클러스터에 넣는 것**이다. 실제 nginx 배포는 그 지시서를 읽은 ArgoCD가 한다. 이 최초 등록 한 번이 이후 자동 배포·self-heal을 시작시키는 **진입점**이다.
+
 🔎 이 Application은 `syncPolicy.automated`라 **SYNC를 안 눌러도** 잠시 후 자동으로 동기화된다(폴링 최대 3분, 급하면 `argocd app sync web` 또는 UI **REFRESH/SYNC**).
 
 ```bash
@@ -139,8 +144,9 @@ kubectl -n web get deploy,rs,pod,svc
 
 ```bash
 # 실제로 응답하는지 (새 터미널)
-kubectl -n web port-forward svc/web 8080:80
-# 다른 터미널: curl -s localhost:8080 | head  →  "Welcome to nginx!"
+# 로컬 8080은 ArgoCD UI(실습 0)가 점유 중이므로 8081로 포워딩한다 (콜론 뒤 80은 Service 포트라 그대로)
+kubectl -n web port-forward svc/web 8081:80
+# 다른 터미널: curl -s localhost:8081 | head  →  "Welcome to nginx!"
 ```
 
 🧪 UI에서 `web` Application을 열어 리소스 트리를 펼쳐 본다. Service → Deployment → ReplicaSet → Pod 3개의 관계가 보이는가?

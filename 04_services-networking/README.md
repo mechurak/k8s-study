@@ -11,6 +11,7 @@
 - DNS — 서비스/파드 DNS 이름 규칙
 - Ingress — 규칙, 호스트/경로 기반 라우팅, IngressClass, 1 Ingress ↔ N Service, on-prem 노출 → [ingress.md](./ingress.md)
 - **Gateway API** — GatewayClass / Gateway / HTTPRoute, Ingress 후속 표준 (신규) → [gateway-api.md](./gateway-api.md)
+- **oauth2-proxy** — 인증 게이트 + path 라우팅, ingress auth annotation, `--upstream` 경로 동작 (실무) → [oauth2-proxy.md](./oauth2-proxy.md)
 - **NetworkPolicy** — ingress/egress 규칙, default deny
   - kind 기본 CNI(kindnet)는 정책 미적용 → Calico 설치 필요 (`01_lab-environment/kind.md` 참고)
 

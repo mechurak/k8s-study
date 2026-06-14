@@ -1,6 +1,6 @@
 # 10. 생태계 / GitOps
 
-CKA 시험 범위는 아니지만 **실무에서 흔히 쓰는 생태계 도구** 정리. 특히 GitOps 기반 배포(ArgoCD).
+CKA 시험 범위는 아니지만 **실무에서 흔히 쓰는 생태계 도구** 정리. GitOps 배포(ArgoCD), 서비스 메시(Istio) 등.
 
 > Helm·Kustomize는 CKA 범위라 `06_cluster-ops`에 있다. 여기서는 그것들을 활용하는 **상위 워크플로(GitOps/CD)** 에 집중.
 
@@ -15,6 +15,11 @@ CKA 시험 범위는 아니지만 **실무에서 흔히 쓰는 생태계 도구*
 
 **실습** → [practice.md](./practice.md): ArgoCD 설치 → guestbook 체험 → 내 저장소로 nginx 배포 → PostgreSQL(StatefulSet) 배포 → GitOps 워크플로(push·self-heal·prune) 실험.
 **운영 레시피** → [recipes.md](./recipes.md): 개발·운영하며 자주 하는 작업(예: 개발 중 DB 초기화) 모음.
+
+### 서비스 메시 (Istio·Envoy) → [service-mesh.md](./service-mesh.md)
+- 서비스 메시 개념 — east-west 통신에 트래픽 제어·mTLS·관측을 앱 수정 없이 (↔ north-south는 `04` ingress/gateway)
+- 데이터/컨트롤 플레인 — Envoy 사이드카 + istiod, Envoy와의 관계
+- 사이드카 vs 앰비언트, 대안(Linkerd/Cilium/Consul), 도입 판단·EKS 실무
 
 ### (추후) 더 볼 것
 - Flux (ArgoCD 대안 GitOps)

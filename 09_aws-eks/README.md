@@ -6,7 +6,7 @@
 - EKS 아키텍처 — 관리형 control plane vs 데이터플레인(노드그룹/Fargate)
 - 클러스터 생성 — `eksctl`, Terraform, 콘솔
 - 인증/인가 — IAM ↔ k8s RBAC 매핑, **IRSA**(IAM Roles for Service Accounts), EKS Pod Identity
-- 네트워킹 — VPC CNI, 보안그룹, LoadBalancer ↔ AWS LB Controller
+- 네트워킹 — VPC CNI, 보안그룹, LoadBalancer ↔ **AWS LB Controller / TargetGroupBinding** → [aws-lb-controller.md](./aws-lb-controller.md)
 - 스토리지 — EBS / EFS CSI 드라이버
 - 노드 관리 — Managed Node Group, Karpenter, 오토스케일링
 - 업그레이드 전략 (control plane / 노드)

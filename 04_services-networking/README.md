@@ -7,6 +7,7 @@
 ## 다루는 내용
 - 클러스터 네트워킹 모델 (파드 네트워크, CNI 개요)
 - Service — ClusterIP / NodePort / LoadBalancer / ExternalName
+- **MetalLB** — on-prem에서 `type: LoadBalancer`를 성립시키는 구현체 (L2/BGP) (실무) → [metallb.md](./metallb.md)
 - Endpoints / EndpointSlice
 - DNS — 서비스/파드 DNS 이름 규칙
 - Ingress — 규칙, 호스트/경로 기반 라우팅, IngressClass, 1 Ingress ↔ N Service, on-prem 노출 → [ingress.md](./ingress.md)

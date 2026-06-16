@@ -90,10 +90,38 @@ spec:
 | `Ingress`의 `rules` | `HTTPRoute` (그리고 TCP/GRPC/TLS Route) |
 | Ingress Controller | Gateway 구현체(NGINX Gateway Fabric, Istio, Envoy Gateway …) |
 
+## Ingress와 Gateway를 같이 쓸 수 있나 — 공존 / 마이그레이션
+
+**된다. 둘은 완전히 독립된 API라 한 클러스터에서 동시 운영이 가능**하고, 마이그레이션 중인 클러스터는 거의 다 이 상태다.
+
+| 형태 | 구성 | 진입점(LB/IP) |
+|---|---|---|
+| **별도 구현체 2개** | ingress-nginx(Ingress) + Envoy Gateway(Gateway) 등 따로 | **2개** (각자 LoadBalancer/NodePort) |
+| **한 구현체가 둘 다 지원** | Istio·Cilium·NGINX은 Ingress·Gateway API **모두 구현** | 공유 가능(구현체 설정에 따라) |
+| **마이그레이션 과도기** | 기존 Ingress 두고 새 라우트만 HTTPRoute로 | 보통 한동안 **2개** 운영 |
+
+```mermaid
+flowchart TB
+    dns1["old.app.com"] --> ic["ingress-nginx<br/>(Ingress 처리)"] --> s1["Service A"]
+    dns2["new.app.com"] --> gw["Gateway 구현체<br/>(HTTPRoute 처리)"] --> s2["Service B"]
+```
+
+### ⚠️ 공존 시 챙길 것
+
+- **진입점이 둘이면 DNS·LB가 따로다.** `old.app.com`은 Ingress LB로, `new.app.com`은 Gateway LB로 — DNS가 어느 IP를 가리키는지 정확해야 한다. on-prem이면 LoadBalancer IP(또는 NodePort)가 **2개** 뜬다.
+- **같은 host/port를 둘이 동시에 주장하면 충돌.** Gateway API는 *자기들끼리는* 우선순위 규칙이 있지만 **Ingress ↔ Gateway 사이엔 중재가 없다** — 실제 LB 리스너를 먼저 잡는 쪽이 이긴다. 같은 도메인을 양쪽에 두지 말 것.
+- **한 구현체가 둘 다 처리**하면(Istio/Cilium 등) 데이터플레인·LB를 공유해 깔끔하다. **별도 구현체 2개**면 리소스·TLS 인증서·관측을 **두 벌** 관리하게 된다.
+
+### 권장 방향 — 점진 이전
+
+공식 권장은 빅뱅 교체가 아니라 **점진 이전**이다: 기존 Ingress 유지 → 새/이전 라우트를 HTTPRoute로 → 다 옮기면 Ingress 제거. [`ingress2gateway`](https://github.com/kubernetes-sigs/ingress2gateway) 툴이 기존 Ingress를 HTTPRoute로 변환해 준다([마이그레이션 가이드](https://gateway-api.sigs.k8s.io/guides/migrating-from-ingress/)).
+
+> 🔎 **둘 다 쓰는 클러스터를 추적**할 땐 양쪽을 다 조회해야 전체가 보인다 — `kubectl get ingress -A` **와** `kubectl get gateway,httproute -A`. 그 뒤 `backend`/`backendRefs` → Service → EndpointSlice → Pod는 동일([연결 추적](#연결-추적--gateway가-내부-service에-어떻게-붙어-있나)).
+
 ## on-prem / 실무 관점
 
 - **구현체(Controller)가 필요한 건 Ingress와 똑같다.** Ingress Controller 자리에 "Gateway 구현체"가 들어간다고 보면 된다: NGINX Gateway Fabric, Istio, Envoy Gateway, Cilium 등.
-- **외부 노출 방식도 동일** — on-prem이면 MetalLB / NodePort / 사내 LB로 Gateway를 노출한다([ingress.md](./ingress.md)의 노출 표와 같음).
+- **외부 노출 방식도 동일** — on-prem이면 [MetalLB](./metallb.md) / NodePort / 사내 LB로 Gateway를 노출한다([ingress.md](./ingress.md)의 노출 표와 같음).
 - **CRD 설치가 선행**되어야 한다. Gateway API는 코어가 아니라 별도 CRD 묶음으로 배포된다(`kubectl apply` for standard channel CRDs) + 구현체.
 - 확인 명령은 Ingress와 평행하다:
   ```bash
@@ -102,6 +130,45 @@ spec:
   kubectl get httproute -A            # 앱들의 라우팅
   kubectl describe httproute <name>   # 특정 Route의 매칭/백엔드/상태
   ```
+
+## 연결 추적 — Gateway가 내부 service에 어떻게 붙어 있나
+
+[oauth2-proxy.md "연결 추적"](./oauth2-proxy.md#연결-추적--ingressoauth2-proxy가-내부-service에-어떻게-붙어-있나)의 **Gateway API 버전**. 객체 모델이 달라 연결 고리가 바뀐다 — `Ingress.spec.rules`가 아니라 **HTTPRoute의 `backendRefs`**, 라우트↔게이트웨이는 **`parentRefs`** 로 묶인다.
+
+```
+Ingress 방식:  Ingress(spec.rules → backend)              → Service → EndpointSlice → Pod
+Gateway 방식:  GatewayClass → Gateway → HTTPRoute(backendRefs) → Service → EndpointSlice → Pod
+                              (parentRefs로 묶임)
+```
+
+```bash
+# ① Gateway의 진입점(리스너/주소/host)
+kubectl -n <ns> get gateway <gw> -o jsonpath=\
+'{range .spec.listeners[*]}{.name} {.protocol}/{.port} host={.hostname}{"\n"}{end}'; echo
+
+# ② 어떤 HTTPRoute가 이 Gateway에 붙었나(parentRefs) + 백엔드(backendRefs)
+kubectl get httproute -A -o jsonpath=\
+'{range .items[*]}{.metadata.namespace}/{.metadata.name}  parent={.spec.parentRefs[*].name}  ->  {range .spec.rules[*].backendRefs[*]}{.name}:{.port} {end}{"\n"}{end}'
+
+# ③ 붙음/안붙음은 status로 — Accepted·ResolvedRefs가 True여야 실제 라우팅됨
+kubectl -n <ns> get httproute <rt> \
+  -o jsonpath='{range .status.parents[*]}{range .conditions[*]}{.type}={.status} {end}{"\n"}{end}'
+```
+
+→ `backendRefs`의 Service부터는 **Ingress 때와 동일**: Service → EndpointSlice → Pod (위 링크의 Step 3). EndpointSlice가 비면 502/503의 급소인 것도 같다.
+
+### 시각화 툴 — Gateway API에서도 쓰나
+
+| 툴 | Gateway API에서 |
+|---|---|
+| **Hubble UI** (CNI가 Cilium) | ✅ **완전 동일.** 트래픽(eBPF) 레이어라 Ingress냐 Gateway냐를 안 따짐. Cilium이 Gateway 구현체면 가장 잘 맞음 |
+| **Headlamp** | ✅ Gateway API 리소스 뷰 지원(없어도 CRD로 조회). 관계 클릭 추적은 버전·플러그인에 따라 차이 |
+| **OpenLens/Lens** | △ 오브젝트는 CRD로 다 보임. 전용 그래프 뷰는 약해 "관계 따라가기"는 손이 더 감 |
+| **kubectl-graph** | ⚠️ ownerReference 기반이라 `parentRefs`/`backendRefs`(참조) **edge를 자동으로 못 그릴 수** 있음 — 오브젝트는 나와도 Gateway→Service 선이 끊길 수 있다 |
+
+> 💡 oauth2-proxy도 Gateway API에서는 보통 **(A) 방식**을 annotation 대신 `HTTPRoute` + ext-auth(또는 구현체별 정책 CRD)로 붙인다. 방식은 쓰는 구현체(Cilium·Istio·Envoy Gateway 등)마다 달라 해당 문서 확인이 필요하다.
+
+> ⚠️ 어떤 툴도 **사내 L4/L7 LB·방화벽·NAT**(인프라 레이어)까지는 못 그린다 → k8s 경계 안쪽 + 진입/egress 지점까지가 한계.
 
 ## 시험·실무 팁
 

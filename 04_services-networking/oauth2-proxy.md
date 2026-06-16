@@ -207,6 +207,85 @@ app.setGlobalPrefix('api');   // Nest 라우트를 /api/* 로 연다
 
 ---
 
+## 연결 추적 — ingress·oauth2-proxy가 내부 service에 어떻게 붙어 있나
+
+이미 돌고 있는(예: 사내) 클러스터에서 **"외부 요청이 어느 Pod까지 가는지"** 를 처음부터 끝까지 따라가는 레시피. 위 (A)/(B) 구분이 추적 경로를 가른다. **전부 읽기 전용**이라 클러스터를 건드리지 않는다. (Gateway API를 쓰면 객체 모델이 달라진다 → [gateway-api.md "연결 추적"](./gateway-api.md#연결-추적--gateway가-내부-service에-어떻게-붙어-있나).)
+
+```
+외부 → Ingress ─┬─(A) auth만 oauth2-proxy에 위임 → 진짜 백엔드 Service
+                └─(B) Ingress 백엔드가 oauth2-proxy → --upstream → 진짜 Service
+                                                              ↓
+                                            Service → EndpointSlice → Pod
+```
+
+### Step 1 — Ingress가 어디로 보내는지 본다
+
+```bash
+# 전체 ingress + 백엔드 한눈에
+kubectl get ingress -A
+
+# 한 ingress의 host/path → service:port 규칙만
+kubectl -n <ns> get ingress <name> -o jsonpath=\
+'{range .spec.rules[*]}host: {.host}{"\n"}{range .http.paths[*]}  {.path}  ->  {.backend.service.name}:{.backend.service.port.number}{"\n"}{end}{end}'; echo
+```
+
+> 💡 사실 **`kubectl -n <ns> describe ingress <name>`** 하나면 규칙 + annotation + (최신 kubectl은) **백엔드 엔드포인트 IP까지** 보여준다. 추적의 90%는 이 명령.
+
+### Step 2 — (A)인지 (B)인지 판별
+
+```bash
+# auth-url annotation이 있으면 → (A). 인증만 위임, spec의 백엔드가 '진짜 서비스'
+kubectl -n <ns> get ingress <name> \
+  -o jsonpath='{.metadata.annotations.nginx\.ingress\.kubernetes\.io/auth-url}'; echo
+```
+
+| 판별 | 의미 | 진짜 백엔드는 |
+|---|---|---|
+| `auth-url`이 채워짐 | **(A)** ingress가 oauth2-proxy에 인증만 물어봄 | `spec.rules`의 백엔드 Service **그대로** |
+| Step 1의 백엔드가 **oauth2-proxy 서비스** | **(B)** oauth2-proxy가 직접 프록시 | oauth2-proxy의 `--upstream`을 더 따라가야 함 |
+
+### Step 3 — Service → 실제 Pod 까지 (공통)
+
+```bash
+# 서비스가 어떤 파드를 고르나 (selector)
+kubectl -n <ns> get svc <svc> -o jsonpath='{.spec.selector}'; echo
+
+# 실제 연결된 엔드포인트(살아있는 파드 IP) — 연결 '됐는지'의 핵심
+kubectl -n <ns> get endpointslices -l kubernetes.io/service-name=<svc> -o wide
+
+# selector로 파드 직접
+kubectl -n <ns> get pods -l <key=value> -o wide
+```
+
+> ⚠️ EndpointSlice가 **비어 있으면** = selector와 매칭되는 Ready 파드가 없다 = "ingress는 붙었는데 **502/503**" 의 전형적 원인. 연결 점검의 급소.
+
+### Step 4 — (B)일 때만: oauth2-proxy의 upstream 읽기
+
+oauth2-proxy는 host를 안 보고 **path로만** 가르므로([핵심 1](#핵심-1--host는-안-본다-오직-path로-가른다)) `--upstream` 목록이 곧 라우팅 표다.
+
+```bash
+# 기동 플래그에서 upstream 추출
+kubectl -n <ns> get deploy <oauth2-proxy> \
+  -o jsonpath='{.spec.template.spec.containers[0].args}' | tr ',' '\n' | grep -i upstream
+
+# config 파일(ConfigMap) 방식이면
+kubectl -n <ns> get cm -o yaml | grep -iA2 upstream
+```
+
+각 `--upstream=http://frontend:3000/store/` 의 `frontend:3000`이 다음 Service → 다시 **Step 3**으로 이어가면 끝까지 추적된다.
+
+### 한 화면에서 보기 (시각화 툴)
+
+| 툴 | 이 추적에 쓰는 법 |
+|---|---|
+| **Headlamp / OpenLens** | Ingress 클릭 → 연결된 Service·Pod로 따라가는 링크. 구조 추적에 적합 |
+| **Hubble UI** (CNI가 Cilium일 때) | 인증 서브요청(ingress→oauth2-proxy)·백엔드 흐름을 **실제 트래픽**으로 — (A)/(B)를 눈으로 구분 |
+| **kubectl-graph** (krew) | Ingress→Service→Pod 관계를 Graphviz 정적 그림으로 추출 |
+
+> ⚠️ 어떤 툴도 **사내 L4/L7 LB·방화벽·NAT**(인프라 레이어)까지는 못 그린다 → k8s 경계 안쪽 + 진입/egress 지점까지가 한계. 그 바깥은 인프라팀 네트워크 다이어그램과 합쳐야 완성.
+
+---
+
 ## 디버깅 — "이 경로가 왜 이렇게 도착하지?"
 
 경로는 체인의 **여러 층**에서 바뀔 수 있다. 백엔드가 받는 경로가 이상하면 **두 곳을 다 본다.**

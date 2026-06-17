@@ -16,6 +16,14 @@ CKA 시험 범위는 아니지만 **실무에서 흔히 쓰는 생태계 도구*
 **실습** → [practice.md](./practice.md): ArgoCD 설치 → guestbook 체험 → 내 저장소로 nginx 배포 → PostgreSQL(StatefulSet) 배포 → GitOps 워크플로(push·self-heal·prune) 실험.
 **운영 레시피** → [recipes.md](./recipes.md): 개발·운영하며 자주 하는 작업(예: 개발 중 DB 초기화) 모음.
 
+### GitOps 시크릿 관리 → [secrets-management.md](./secrets-management.md)
+- **🗺️ 전체 그림** — 저장(Sealed Secrets)·배포(Reflector)·백업/키보호(SOPS·age)·DR 절차가 어떻게 맞물리나
+- **Sealed Secrets** — 런타임 시크릿을 git에 암호화 저장(kubeseal, 비대칭키) → [sealed-secrets.md](./sealed-secrets.md)
+- **SOPS / age** — DR 백업 + Sealed Secrets 마스터키 자체 암호화("키의 키") → [sops-age.md](./sops-age.md)
+- **Reflector** — Secret을 네임스페이스 간 복제(예: Strimzi KafkaUser 시크릿) → [reflector.md](./reflector.md)
+- **런타임 시크릿 DR 절차** — 복구 순서 런북 → [secrets-dr.md](./secrets-dr.md)
+> k8s 기본 `Secret`(base64) 개념 자체는 [03_workloads-scheduling](../03_workloads-scheduling/). 여기선 그걸 **git에 안전히 두고 운영**하는 생태계 도구.
+
 ### 서비스 메시 (Istio·Envoy) → [service-mesh.md](./service-mesh.md)
 - 서비스 메시 개념 — east-west 통신에 트래픽 제어·mTLS·관측을 앱 수정 없이 (↔ north-south는 `04` ingress/gateway)
 - 데이터/컨트롤 플레인 — Envoy 사이드카 + istiod, Envoy와의 관계

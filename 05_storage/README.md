@@ -12,6 +12,9 @@
 - volumeMode, PVC 확장(resize)
 - ConfigMap/Secret를 볼륨으로 마운트 (03번과 연계)
 - (실무) EKS의 EBS/EFS CSI 드라이버 → `09_aws-eks`
+- **오브젝트 스토리지(S3 호환) — MinIO** (실무, CKA 밖) → [minio.md](./minio.md)
+  - PV/PVC(block/file)와 **다른 계층** — 마운트가 아니라 S3 API로 접근. 온프렘 "사내 S3"
+  - ⚠️ 2025~2026 오픈소스 상황 변화(콘솔 관리기능 제거·저장소 아카이브)·대안 포함
 
 ## 정리
 

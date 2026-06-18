@@ -18,7 +18,7 @@ CKA 시험 범위는 아니지만 **실무에서 흔히 쓰는 생태계 도구*
 
 ### GitOps 시크릿 관리 → [secrets-management.md](./secrets-management.md)
 - **🗺️ 전체 그림** — 저장(Sealed Secrets)·배포(Reflector)·백업/키보호(SOPS·age)·DR 절차가 어떻게 맞물리나
-- **Sealed Secrets** — 런타임 시크릿을 git에 암호화 저장(kubeseal, 비대칭키) → [sealed-secrets.md](./sealed-secrets.md)
+- **Sealed Secrets** — 런타임 시크릿을 git에 암호화 저장(kubeseal, 비대칭키) → [sealed-secrets.md](./sealed-secrets.md) · **실습** → [practice-sealed-secrets.md](./practice-sealed-secrets.md)
 - **SOPS / age** — DR 백업 + Sealed Secrets 마스터키 자체 암호화("키의 키") → [sops-age.md](./sops-age.md)
 - **Reflector** — Secret을 네임스페이스 간 복제(예: Strimzi KafkaUser 시크릿) → [reflector.md](./reflector.md)
 - **런타임 시크릿 DR 절차** — 복구 순서 런북 → [secrets-dr.md](./secrets-dr.md)

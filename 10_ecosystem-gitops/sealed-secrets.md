@@ -2,6 +2,7 @@
 
 > 런타임 시크릿을 **공개키로 암호화한 `SealedSecret`** 으로 바꿔 git에 안전히 올리고, 클러스터 안 controller만 **개인키로 복호화**해 평범한 `Secret`을 만든다.
 > 큰 그림·다른 도구와의 관계 → [secrets-management.md](./secrets-management.md) · 복구 런북 → [secrets-dr.md](./secrets-dr.md)
+> **직접 따라 하는 실습(kind)** → [practice-sealed-secrets.md](./practice-sealed-secrets.md)
 
 ## 왜 필요한가 — `Secret`은 암호화가 아니라 base64다
 
@@ -63,6 +64,31 @@ kubectl get secret mysecret           # 복호화된 런타임 Secret이 생겨 
   kubeseal --fetch-cert > pub-cert.pem      # 현재 클러스터 공개키 받기
   kubeseal --cert pub-cert.pem -o yaml < secret.yaml > sealed.yaml
   ```
+
+## 기존 값만 갱신 — 손으로 못 고친다, 다시 seal한다
+
+SealedSecret의 암호문은 **직접 편집 불가**(텍스트를 바꾸면 복호화가 깨진다)이고, 로컬엔 개인키가 없어 **기존 값을 풀어볼 수도 없다.** 그래서 바꿀 키만 **다시 seal해 갈아끼운다**:
+
+```bash
+# (A) --merge-into: 기존 파일에 그 키만 병합 (다른 키는 유지·풀어볼 필요 없음) — 제일 흔함
+kubectl create secret generic db-cred --from-literal=password='new' \
+  --namespace myapp --dry-run=client -o yaml | kubeseal --merge-into sealed-db-cred.yaml
+
+# (B) --raw: 값 하나만 암호화해 encryptedData에 손으로 붙임 (스코프 직접 지정)
+echo -n 'new' | kubeseal --raw --name db-cred --namespace myapp
+```
+- 이름·네임스페이스를 **기존과 동일**하게(strict면 안 맞으면 복호화 거부). 결과는 **git에 커밋해야 반영**(파일이 곧 소스).
+
+## CI/파이프라인으로 seal — 사용자가 kubeseal·kubectl을 안 쓰게
+
+seal은 **누군가 `kubeseal`을 돌려야** 하는 단계라 순수 git 편집만으론 SealedSecret을 만들 수 없다. 하지만 그 `kubeseal`을 **사용자 노트북이 아니라 CI에 두면**, 사용자는 GitOps(값 제공 + 트리거/PR)만 하면 된다.
+
+- 공개 인증서(`pub-cert.pem`)는 **유출돼도 안전**하니 저장소에 둔다 → CI가 `--cert`로 **오프라인 sealing**(클러스터 접근 불필요).
+- 사용자는 시크릿 **값**만 안전한 채널(예: CI 시크릿)로 제공 → CI가 seal → SealedSecret 커밋/PR → ArgoCD sync. (반영(apply)은 ArgoCD가 하므로 **이미 순수 GitOps**다.)
+- 키 갱신(30일)으로 인증서가 바뀌니 저장소의 `pub-cert.pem`도 주기적으로 갱신한다.
+- CLI는 물론 **값 입력조차** 안 시키려면 모델을 **External Secrets Operator**로 바꾼다(값은 콘솔/스토어에, git엔 참조만) → [secrets-management.md](./secrets-management.md).
+
+> 동작하는 **GitHub Actions 예시**(GitHub Enterprise 포함)는 [practice-sealed-secrets.md 실습 7](./practice-sealed-secrets.md)에 있다.
 
 ## 스코프 — 암호문을 어디까지 재사용할 수 있나 (함정 주의)
 

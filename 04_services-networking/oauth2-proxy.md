@@ -2,6 +2,7 @@
 
 > CKA 범위 밖 **실무 도구**지만, ingress-nginx annotation·경로 rewrite와 직결돼 여기 둔다.
 > 관련: [ingress.md](./ingress.md)(IngressClass·rewrite-target·spec vs annotation) · [전체 계층 그림](./ingress.md#전체-그림--요청이-거치는-계층) · [README](./README.md)
+> **직접 따라 하는 실습(kind+Keycloak, 모드 A·B)** → [practice-oauth2-proxy.md](./practice-oauth2-proxy.md)
 
 ## 개념 — oauth2-proxy는 무엇인가
 

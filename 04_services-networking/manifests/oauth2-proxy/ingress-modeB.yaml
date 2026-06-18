@@ -1,0 +1,19 @@
+# (B) Ingress 하나 — app host의 모든 경로를 oauth2-proxy로. (/oauth2/*도 oauth2-proxy가 직접 처리)
+# 라우팅·인증을 oauth2-proxy가 다 하므로 auth annotation이 없다. mode A의 ingress는 지우고 이걸 쓴다.
+# 📖 Ingress: https://kubernetes.io/docs/concepts/services-networking/ingress/
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: app.127.0.0.1.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: oauth2-proxy
+                port: { number: 4180 }

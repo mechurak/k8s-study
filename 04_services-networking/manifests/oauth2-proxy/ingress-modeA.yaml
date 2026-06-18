@@ -1,0 +1,41 @@
+# (A) 인증 게이트용 Ingress 두 개.
+#  1) app: 보호 대상(backend echo). auth-url로 oauth2-proxy에 인증을 위임, 통과한 요청만 backend로.
+#  2) oauth2-proxy: 브라우저가 /oauth2/start·/oauth2/callback에 닿도록 같은 host의 /oauth2를 oauth2-proxy로.
+# 📖 ingress-nginx external auth: https://kubernetes.github.io/ingress-nginx/examples/auth/oauth-external-auth/
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.default.svc.cluster.local:4180/oauth2/auth"
+    nginx.ingress.kubernetes.io/auth-signin: "http://app.127.0.0.1.nip.io/oauth2/start?rd=$escaped_request_uri"
+    nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User, X-Auth-Request-Email, X-Auth-Request-Preferred-Username, X-Auth-Request-Groups"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: app.127.0.0.1.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port: { number: 80 }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: oauth2-proxy
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: app.127.0.0.1.nip.io
+      http:
+        paths:
+          - path: /oauth2
+            pathType: Prefix
+            backend:
+              service:
+                name: oauth2-proxy
+                port: { number: 4180 }

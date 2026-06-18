@@ -1,0 +1,50 @@
+# oauth2-proxy — (A) ingress-nginx auth_request 인증 게이트 모드.
+# 실제 upstream 없이 /oauth2/auth가 200/401만 반환(static://200). ingress가 이걸 서브요청으로 물어봄.
+# client-secret/cookie-secret은 Secret(oauth2-proxy)에서 env로 주입 — 먼저 만들어야 한다(practice 실습 2).
+# 📖 OIDC provider(Keycloak): https://oauth2-proxy.github.io/oauth2-proxy/configuration/providers/keycloak_oidc/
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: oauth2-proxy }
+  template:
+    metadata:
+      labels: { app: oauth2-proxy }
+    spec:
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3
+          args:
+            - --provider=keycloak-oidc
+            - --oidc-issuer-url=http://keycloak.127.0.0.1.nip.io/realms/lab
+            - --client-id=oauth2-proxy
+            - --redirect-url=http://app.127.0.0.1.nip.io/oauth2/callback
+            - --email-domain=*
+            - --insecure-oidc-allow-unverified-email=true   # 랩: 테스트 사용자 이메일 미검증 허용
+            - --cookie-secure=false                          # 랩: HTTP라 secure 쿠키 끔
+            - --http-address=0.0.0.0:4180
+            - --reverse-proxy=true                           # ingress의 X-Forwarded-* 신뢰
+            - --upstream=static://200                        # (A) 실제 upstream 없음 — 인증 판정만
+            - --set-xauthrequest=true                        # X-Auth-Request-* 응답 헤더 방출
+            - --cookie-domain=.127.0.0.1.nip.io
+            - --whitelist-domain=.127.0.0.1.nip.io
+          env:
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: oauth2-proxy, key: client-secret } }
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom: { secretKeyRef: { name: oauth2-proxy, key: cookie-secret } }
+          ports:
+            - containerPort: 4180
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy
+spec:
+  selector: { app: oauth2-proxy }
+  ports:
+    - port: 4180
+      targetPort: 4180

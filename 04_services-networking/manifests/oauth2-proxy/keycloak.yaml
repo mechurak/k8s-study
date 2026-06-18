@@ -1,0 +1,61 @@
+# Keycloak (OIDC IdP) — kind 랩용. start-dev, ingress 뒤에서 HTTP로 노출.
+# issuer = http://keycloak.127.0.0.1.nip.io/realms/lab (KC_HOSTNAME으로 고정)
+# 📖 Keycloak server 설정: https://www.keycloak.org/server/all-config
+# 📖 reverse proxy: https://www.keycloak.org/server/reverseproxy
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: keycloak }
+  template:
+    metadata:
+      labels: { app: keycloak }
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.6
+          args: ["start-dev"]
+          env:
+            - { name: KC_BOOTSTRAP_ADMIN_USERNAME, value: "admin" }   # v26+ (옛 KEYCLOAK_ADMIN 대체)
+            - { name: KC_BOOTSTRAP_ADMIN_PASSWORD, value: "admin" }
+            - { name: KC_HTTP_ENABLED, value: "true" }                # 프록시 뒤 HTTP 수신
+            - { name: KC_HOSTNAME, value: "http://keycloak.127.0.0.1.nip.io" }  # issuer/frontend URL 고정
+            - { name: KC_HOSTNAME_STRICT, value: "false" }            # 랩이라 완화(운영은 true)
+            - { name: KC_PROXY_HEADERS, value: "xforwarded" }         # v26+ (옛 KC_PROXY 제거됨)
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet: { path: /realms/master, port: 8080 }
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            failureThreshold: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+spec:
+  selector: { app: keycloak }
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: keycloak.127.0.0.1.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port: { number: 8080 }

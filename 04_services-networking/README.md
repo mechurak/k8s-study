@@ -13,12 +13,22 @@
 - DNS — 서비스/파드 DNS 이름 규칙
 - Ingress — 규칙, 호스트/경로 기반 라우팅, IngressClass, 1 Ingress ↔ N Service, on-prem 노출 → [ingress.md](./ingress.md)
 - **Gateway API** — GatewayClass / Gateway / HTTPRoute, Ingress 후속 표준 (신규) → [gateway-api.md](./gateway-api.md)
-- **oauth2-proxy** — 인증 게이트 + path 라우팅, ingress auth annotation, `--upstream` 경로 동작 (실무) → [oauth2-proxy.md](./oauth2-proxy.md)
+- **oauth2-proxy** — 인증 게이트 + path 라우팅, ingress auth annotation, `--upstream` 경로 동작 (실무) → [oauth2-proxy.md](./oauth2-proxy.md) · **실습(kind+Keycloak)** → [practice-oauth2-proxy.md](./practice-oauth2-proxy.md)
 - **cert-manager** — TLS 인증서 자동 발급/갱신, ACME DNS-01(Cloudflare·사내 egress proxy 경유) (실무) → [cert-manager.md](./cert-manager.md) *(준비 중)*
 - **external-dns** — Ingress/Service → DNS 레코드 자동 관리, opt-in annotation·upsert-only (실무) → [external-dns.md](./external-dns.md) *(준비 중)*
 - **소스 IP 화이트리스트** — `loadBalancerSourceRanges`(Service) / `whitelist-source-range`(Ingress), admin UI 접근통제 → [external-access.md](./external-access.md#화이트리스트는-어디에-거나--두-위치)
 - **NetworkPolicy** — ingress/egress 규칙, default deny
   - kind 기본 CNI(kindnet)는 정책 미적용 → Calico 설치 필요 (`01_lab-environment/kind.md` 참고)
+
+## 실습 매니페스트
+
+- **oauth2-proxy 랩** (kind + Keycloak, → [practice-oauth2-proxy.md](./practice-oauth2-proxy.md))
+  - `manifests/oauth2-proxy/keycloak.yaml` — Keycloak(OIDC IdP), ingress 뒤 HTTP 노출
+  - `manifests/oauth2-proxy/echo-apps.yaml` — 데모 frontend/backend(요청 echo)
+  - `manifests/oauth2-proxy/oauth2-proxy-modeA.yaml` — (A) ingress auth_request 모드
+  - `manifests/oauth2-proxy/ingress-modeA.yaml` — 보호 앱 + `/oauth2` ingress
+  - `manifests/oauth2-proxy/oauth2-proxy-modeB.yaml` — (B) `--upstream` 직접 프록시 모드
+  - `manifests/oauth2-proxy/ingress-modeB.yaml` — app host 전체 → oauth2-proxy
 
 ## 정리
 

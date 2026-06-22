@@ -3,6 +3,7 @@
 > CKA 범위 밖 **실무 도구**지만, ingress-nginx annotation·경로 rewrite와 직결돼 여기 둔다.
 > 관련: [ingress.md](./ingress.md)(IngressClass·rewrite-target·spec vs annotation) · [전체 계층 그림](./ingress.md#전체-그림--요청이-거치는-계층) · [README](./README.md)
 > **직접 따라 하는 실습(kind+Keycloak, 모드 A·B)** → [practice-oauth2-proxy.md](./practice-oauth2-proxy.md)
+> IdP **안쪽**(Keycloak realm·client·토큰, 사내 **AD 연동**) → [11_identity-keycloak](../11_identity-keycloak/)
 
 ## 개념 — oauth2-proxy는 무엇인가
 
@@ -311,6 +312,145 @@ kubectl get deploy,svc -A | grep oauth2
 ```
 
 `args`에 `--upstream=...`만 있고 구조 config(`--config`/alpha)가 없으면 **legacy 모드.** 단 legacy의 path 처리도 **버전에 따라 다르니**(위 ⚠️ 참고) `image:` 태그를 함께 확인하고, 위 **실측(curl + backend 로그)**으로 확정한다. strip이 보인다면 범인은 보통 ①(ingress rewrite-target)이거나 ②의 버전별 prepend 동작.
+
+---
+
+## 앱은 무엇을 받나 — oauth2-proxy가 백엔드에 넘기는 것
+
+자주 헷갈리는 질문: *"oauth2-proxy가 Keycloak 토큰을 받으면, 그걸 앱으로 그대로 내려주나?"* → **기본은 아니다.** oauth2-proxy는 토큰을 **자기 세션에 보관**하고, 백엔드엔 보통 **신원 헤더만** 넘긴다. 토큰 원본은 **명시적으로 켜야** 전달된다.
+
+```
+브라우저 ──(oauth2-proxy 암호화 쿠키 _oauth2_proxy)── oauth2-proxy ──(헤더)── 내 앱
+                                                          │
+                                              Keycloak 토큰은 여기 세션에 보관
+```
+
+- 브라우저↔oauth2-proxy 쿠키는 **oauth2-proxy 자체 암호화 쿠키**지 Keycloak 토큰이 아니다.
+- 토큰(access/ID)은 oauth2-proxy 세션 저장소(쿠키 or Redis)에 있고, 백엔드로는 **선택적으로만** 흐른다.
+
+### ⚠️ 누가 OIDC client인가 — scope·로그인은 oauth2-proxy가 정한다
+
+자주 막히는 오해: *"그럼 내 앱이 scope를 어떻게 정하지?"* → **이 구조에선 못 정한다.** Keycloak에 로그인하는 **OIDC client = oauth2-proxy**고, scope도 oauth2-proxy가 정한다. **내 앱은 Keycloak에 등록조차 안 된** 단순 소비자다.
+
+```
+[브라우저] → [oauth2-proxy] ⇄ [Keycloak]   ← oauth2-proxy가 OIDC client (로그인·scope 결정)
+                  │
+              (헤더/토큰)
+                  ↓
+              [내 앱]   ← Keycloak 모름. client 아님. scope 결정권 없음
+```
+
+- Keycloak에 등록된 client = **oauth2-proxy**(client-id/secret 가진 그 하나). 내 앱은 OIDC를 안 한다.
+- scope는 oauth2-proxy 설정에서: `--scope="openid profile email groups"`. 여기에 Keycloak의 **oauth2-proxy client scope/mapper**가 더해져 토큰이 정해진다.
+
+**내 앱이 원하는 claim을 받으려면** — 직접 scope를 못 정하니 체인 각 단계를 설정(보통 인프라/플랫폼 담당과 협의):
+
+| 단계 | 어디서 | 무엇을 |
+|------|------|------|
+| ① scope 요청 | **oauth2-proxy** `--scope` | 예: `groups` 받으려면 포함 |
+| ② 토큰에 claim 싣기 | **Keycloak**(oauth2-proxy client의 scope/mapper) | group membership mapper 등 |
+| ③ 앱으로 전달 | **oauth2-proxy** `--pass-*`/`--set-*` | `X-Forwarded-Groups` 등 |
+| ④ 읽기 | **내 앱** | 그 헤더로 인가 |
+
+> 💡 **앱이 직접 scope를 정하려면** = 앱을 **별도 OIDC client로 Keycloak에 등록**해 앱의 OIDC 라이브러리에서 직접 로그인할 때다(oauth2-proxy 없이/별개). 그땐 앱이 client라 scope·토큰 검증을 앱이 책임진다. 앞단 oauth2-proxy와 앱 직접 OIDC를 **섞으면** 토큰이 두 종류 생기니 의도 확인 필요. claim의 출처·검증은 → [11 concepts.md](../11_identity-keycloak/concepts.md#scope--토큰이-다룰-범위).
+
+### 앱이 받는 것 — 기본 vs 옵션
+
+| 무엇이 앱에 도달 | 기본? | 켜는 플래그 | 헤더 |
+|------|------|------|------|
+| **사용자 식별 정보**(이메일·유저·그룹) | ✅ 기본 | `--pass-user-headers`(기본 on) | `X-Forwarded-User` / `-Email` / `-Preferred-Username` / `-Groups` |
+| **access token 원본(JWT)** | ❌ | `--pass-access-token` | `X-Forwarded-Access-Token` |
+| **ID token 원본(JWT, JSON Web Token)** | ❌ | `--pass-authorization-header` | `Authorization: Bearer <ID token>` |
+
+> 기본 철학: oauth2-proxy가 **이미 토큰을 검증**했으니, 앱엔 "검증된 결과(헤더)"만 준다. 토큰 원본(서명된 JWT)은 기본적으로 앱까지 **안 간다.**
+
+### `--upstream`과의 관계 — 두 플래그 무리는 짝이다
+
+위 `--pass-*`는 `--upstream`과 **별개가 아니라 짝**이다. `--upstream`이 "oauth2-proxy가 트래픽 위에 서서 **직접 프록시한다(모드 B)**" 는 경로를 정하고, `--pass-*`는 "그 **경로로 가는 요청에 무엇을 붙일지**" 를 정한다. 즉 `--pass-*` 헤더가 백엔드에 닿는 건 `--upstream`이 oauth2-proxy를 경로에 세워줬기 때문.
+
+| 플래그 | 무엇을 정함 | 어디에 붙나 | 모드 |
+|------|------|------|------|
+| **`--upstream`** | 어디로 **프록시**할지(=모드 B 스위치) | 경로 자체 | **(B)** |
+| `--pass-user-headers` · `--pass-access-token` · `--pass-authorization-header` | upstream으로 가는 **요청(request)** 에 헤더/토큰 부착 | 백엔드로 가는 **요청** | **(B)** — oauth2-proxy가 경로에 있어야 의미 |
+| `--set-xauthrequest` · `--set-authorization-header` | **인증 응답(response)** 헤더로 세팅 | `/oauth2/auth` **응답** → nginx가 복사 | **(A)** |
+
+- **(B) `--upstream` 직접 프록시**: oauth2-proxy가 직접 프록시하니 **요청에 붙이는** `--pass-*`가 그대로 백엔드로 흘러간다.
+- **(A) ingress auth_request**: oauth2-proxy는 프록시를 안 하고 `/oauth2/auth`에 **답만** 한다 → `--pass-*`(요청용)가 아니라 **응답 헤더로 세팅하는** `--set-xauthrequest`(토큰까지 원하면 `--pass-access-token` 병행)/`--set-authorization-header`를 쓰고, ingress `auth-response-headers`에 **그 헤더 이름을 나열**해야 백엔드까지 복사된다(안 적으면 안 옴). → [위 (A) 표](#a-ingress-nginx-auth-annotation-방식)의 `auth-response-headers`.
+
+> 한 줄 요약: **`--upstream` = "프록시한다"(모드 B), `--pass-*` = "그 프록시 요청에 신원/토큰을 싣는다".** 모드 A엔 `--upstream`이 없으니 `--pass-*` 대신 `--set-*`를 쓴다.
+
+### 앱은 어떻게 써야 하나
+
+| 앱이 받는 것 | 앱이 할 일 |
+|------|------|
+| **헤더만**(`X-Forwarded-Email` 등) | 헤더를 **신뢰**하고 사용 (oauth2-proxy가 이미 검증) |
+| **토큰 원본**도 받음 | 필요 시 앱이 **JWKS로 재검증**하거나 추가 claim 활용 |
+
+> ⚠️ **헤더 신뢰의 전제 = 위조 차단.** `X-Forwarded-*`를 믿으려면 그 헤더가 **오직 oauth2-proxy를 거쳐야만** 도달하게 해야 한다(외부→백엔드 직접 경로에서 같은 이름 헤더를 주입해 우회하지 못하도록 네트워크 격리/strip). 백엔드가 직접 노출돼 있으면 헤더 스푸핑으로 인증 우회 위험.
+
+> 💡 **언제 토큰을 굳이 넘기나** — 앱이 (a) 토큰의 추가 claim이 필요하거나 (b) 받은 토큰으로 **다른 API를 호출**(토큰 릴레이)할 때. 단순 로그인 보호만이면 헤더로 충분. 토큰 안의 claim이 어디서 왔는지(AD→Keycloak)는 [11 concepts.md](../11_identity-keycloak/concepts.md).
+
+### 단일 oauth2-proxy로 frontend+backend — "backend에만 토큰"이 되나
+
+하나의 oauth2-proxy가 `--upstream`으로 frontend·backend를 같이 프록시하는 모드 B에서, *"토큰을 backend에만 선택적으로 내릴 수 있나?"* → **oauth2-proxy 자체로는 안 된다.** `--pass-access-token` 등 패스 플래그는 **프록시 전역**이라, 켜면 **frontend·backend 두 upstream 요청에 모두** 토큰 헤더가 붙는다(upstream별 헤더 선택 기능 없음).
+
+**그래도 대체로 안전한 이유** — 토큰이 frontend upstream에 붙어도 그건 **frontend 서버(Pod)로 가는 요청 헤더**다. **브라우저(JS)엔 전달되지 않는다**(서버→upstream 요청 헤더는 클라이언트 응답으로 새지 않음).
+
+```
+브라우저 ──(응답: HTML/JS, 토큰 없음)── oauth2-proxy ──[전역 --pass-access-token]──┬─→ frontend Pod (헤더 받지만 보통 무시)
+                                                                                   └─→ backend Pod (헤더 읽어 디코드)
+```
+
+- frontend가 정적/번들 서버면 그 헤더를 그냥 무시 → **전역으로 켜도 브라우저는 토큰을 못 본다.**
+- **잔여 리스크** = frontend 서버가 그 헤더를 **로그에 남기거나 SSR에서 요청 헤더를 클라이언트로 노출**하는 경우뿐. 일반 frontend는 안 그럼.
+
+**진짜로 backend에만 주려면** — oauth2-proxy엔 upstream별 선택이 없으니 **path를 아는 레이어**에서 가른다:
+
+| 방법 | 어떻게 |
+|------|------|
+| **모드 A로 전환** | `--set-xauthrequest`+`--pass-access-token`으로 토큰을 응답 헤더로 만들고, **`/api` Ingress에만** `auth-response-headers`에 그 헤더를 나열 → **path별 선택 가능** |
+| 경로/프록시 분리 | frontend·backend를 다른 ingress path나 별도 oauth2-proxy로 (구성 복잡↑) |
+| frontend에서 차단 | frontend 서버가 그 헤더를 **로그·노출 안 하게**(또는 strip) — 가장 간단, 보통 이걸로 충분 |
+
+> 정리: **모드 B 단일 프록시 = 토큰 패스는 전역**(backend-only 분리 불가). 하지만 어차피 **브라우저엔 안 가므로** frontend가 무시/로그제외하면 그냥 켜도 OK. 진짜 분리가 필요하면 **모드 A로 옮겨 `/api` Ingress에서만** 토큰 헤더를 붙인다. ⚠️ frontend가 **SSR**(요청 헤더를 렌더링에 쓰는 Next.js 등)이면 그 헤더를 클라이언트로 흘리지 않게 점검.
+
+### 특정 정보(부서명·role)가 앱까지 오는지 — 끝까지 점검
+
+"내 앱(backend+frontend)이 원하는 claim(예: `department`, role)을 받나" 는 **5개 고리**가 다 이어져야 한다. 어디서 끊겼는지 순서대로 본다.
+
+| # | 고리 | 확인 위치 | `department`(임의 claim) | role |
+|---|------|------|------|------|
+| ① | AD에 값 존재 + bind 계정 읽기 권한 | AD | 속성 채워졌나 | 그룹/롤 |
+| ② | LDAP 매퍼 (AD→Keycloak 사용자) | Keycloak User federation | user-attribute 매퍼 | group/role 매퍼 |
+| ③ | Protocol 매퍼 + scope (→토큰 claim) | Keycloak client(=oauth2-proxy) | 토큰에 `department` 실리나 | `realm_access.roles` 등 |
+| ④ | **oauth2-proxy passthrough** | oauth2-proxy 플래그 | ⚠️ 함정1 | groups로 우회 |
+| ⑤ | 앱이 읽기 | 내 backend/frontend | ⚠️ 함정2 | |
+
+> ①②는 [11 ad-federation.md](../11_identity-keycloak/ad-federation.md), ③은 [11 concepts.md](../11_identity-keycloak/concepts.md). ④⑤가 이 문서 구간.
+
+**⚠️ 함정 1 — oauth2-proxy 헤더는 고정 세트다.** 헤더로 내려주는 건 정해진 몇 개뿐: `X-Forwarded-User` / `-Email` / `-Preferred-Username` / `-Groups`. **`X-Forwarded-Department` 같은 임의 claim 헤더는 없다.**
+
+| 원하는 것 | 받는 법 |
+|------|------|
+| **role** | role을 **groups claim에 싣고** oauth2-proxy `--oidc-groups-claim`을 그 claim으로 가리키면 `X-Forwarded-Groups`로 옴 |
+| **부서명(임의 claim)** | 헤더 불가 → **토큰을 통째로 내려서**(`--pass-access-token`→`X-Forwarded-Access-Token`, 또는 `--pass-authorization-header`→`Authorization: Bearer`) **backend가 JWT를 디코드**해 읽기 |
+
+→ ③에서 토큰에 `department`를 넣었어도, **④에서 토큰을 안 내려주면 backend가 영영 못 본다.**
+
+**⚠️ 함정 2 — frontend는 `X-Forwarded-*`를 못 본다.** 이 헤더는 oauth2-proxy가 **backend로 가는 요청**에 붙이는 것 → 브라우저(frontend JS)엔 안 온다.
+
+| 주체 | 어떻게 받나 |
+|------|------|
+| **backend** | oauth2-proxy가 붙인 `X-Forwarded-*` 헤더 / 내려준 토큰을 **서버에서** 읽음 |
+| **frontend** | ⓐ **backend가 `/api/me`로 중계**(가장 흔함) / ⓑ oauth2-proxy `/oauth2/userinfo`(user·email·groups만 JSON) / ⓒ frontend가 별도 OIDC client면 자기 ID token |
+
+**점검 순서 (부서명이 안 올 때)**
+1. **③ 토큰에 있나** — Keycloak 콘솔 *Client scopes → Evaluate*로 그 사용자 토큰에 `department`가 보이나. 없으면 ②/③ 매퍼 문제.
+2. **④ 내려오나** — backend에서 `X-Forwarded-Access-Token`(or `Authorization`)이 오나? 안 오면 `--pass-access-token` 미설정.
+3. **⑤ 디코드** — backend가 그 토큰을 디코드해 읽나(+ JWKS 검증).
+4. **frontend** — backend `/api/me`가 그 값을 노출하나.
+
+> 요점: **role은 groups 헤더로 받을 여지가 있지만, 부서명 같은 임의 claim은 "토큰 통째 + backend 디코드"가 정석**이고, frontend는 backend 경유가 기본.
 
 ---
 

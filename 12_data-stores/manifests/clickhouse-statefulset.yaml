@@ -1,0 +1,63 @@
+# ClickHouse 단일 노드 — StatefulSet + 영구 볼륨(volumeClaimTemplates)으로 OLAP DB 실습
+# StatefulSet인 이유: DB는 안정적 식별자 + 자기 전용 디스크가 필요 → Deployment 아님
+# 📖 ClickHouse(Docker): https://clickhouse.com/docs/en/install#docker
+# 📖 StatefulSet: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: clickhouse
+  labels:
+    app: clickhouse
+spec:
+  serviceName: clickhouse        # 짝이 되는 headless Service 이름 (안정적 DNS)
+  replicas: 1                     # 단일 노드 학습용. 클러스터/복제는 operator로 (README 참고)
+  selector:
+    matchLabels:
+      app: clickhouse
+  template:
+    metadata:
+      labels:
+        app: clickhouse
+    spec:
+      securityContext:
+        fsGroup: 101              # clickhouse 그룹(gid 101) — 마운트된 볼륨 쓰기 권한 부여
+      containers:
+        - name: clickhouse
+          image: clickhouse/clickhouse-server:26.5.1   # 고정 태그(latest 금지). 보수적으로 가려면 직전 LTS로 교체
+          ports:
+            - { name: http,        containerPort: 8123 }   # HTTP/REST·JDBC(DBeaver)
+            - { name: native,      containerPort: 9000 }   # 네이티브 TCP(clickhouse-client·Grafana)
+            - { name: interserver, containerPort: 9009 }   # 노드 간 복제(여기선 미사용)
+          env:
+            - name: CLICKHOUSE_USER
+              value: default
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: clickhouse-secret
+                  key: password
+            - name: CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT
+              value: "1"          # SQL로 사용자/권한(GRANT) 관리 허용
+          readinessProbe:         # /ping 이 "Ok." 를 주면 트래픽 받음
+            httpGet: { path: /ping, port: 8123 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /ping, port: 8123 }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:              # kind(colima 8GB) 기준 보수적. 데이터 커지면 늘릴 것
+            requests: { cpu: 250m, memory: 512Mi }
+            limits:   { cpu: "1",  memory: 2Gi }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/clickhouse   # 데이터·메타데이터 저장 경로
+  volumeClaimTemplates:           # Pod마다 전용 PVC 자동 생성 (PVC 이름: data-clickhouse-0)
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
+        # storageClassName 생략 → kind 기본 SC(standard, local-path) 사용

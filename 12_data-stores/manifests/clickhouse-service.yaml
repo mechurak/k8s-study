@@ -1,0 +1,17 @@
+# ClickHouse headless Service — StatefulSet에 안정적 DNS 부여
+# clusterIP: None → 파드별 DNS(clickhouse-0.clickhouse.<ns>.svc)로 직접 접근
+# 클라이언트(DBeaver/Grafana)는 port-forward 또는 이 Service 이름으로 붙는다
+# 📖 Headless Service: https://kubernetes.io/docs/concepts/services-networking/service/#headless-services
+apiVersion: v1
+kind: Service
+metadata:
+  name: clickhouse
+  labels:
+    app: clickhouse
+spec:
+  clusterIP: None
+  selector:
+    app: clickhouse
+  ports:
+    - { name: http,   port: 8123, targetPort: 8123 }
+    - { name: native, port: 9000, targetPort: 9000 }

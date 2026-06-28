@@ -1,0 +1,18 @@
+# 위 PVC(pvc-demo)를 /data에 마운트하는 파드
+# 📖 Volumes: https://kubernetes.io/docs/concepts/storage/volumes/
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pvc-pod
+spec:
+  containers:
+    - name: app
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]
+      volumeMounts:
+        - name: data
+          mountPath: /data
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: pvc-demo

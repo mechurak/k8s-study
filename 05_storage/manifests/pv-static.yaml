@@ -1,0 +1,15 @@
+# 정적 PV — 관리자가 직접 만드는 실제 볼륨(hostPath, 학습용)
+# 📖 PV: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-manual
+spec:
+  capacity:
+    storage: 500Mi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual          # 동적 SC와 겹치지 않는 임의 이름
+  hostPath:
+    path: /tmp/pv-manual            # 노드 안 경로 (학습용; 프로덕션 금지)

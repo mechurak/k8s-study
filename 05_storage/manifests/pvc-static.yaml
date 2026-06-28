@@ -1,0 +1,13 @@
+# 위 정적 PV(pv-manual)에 바인딩되는 PVC — storageClassName: manual 로 매칭
+# 📖 PVC: https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistentvolumeclaims
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-manual
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi
+  storageClassName: manual          # 동적 프로비저닝 끄고 이 클래스의 PV만 사용

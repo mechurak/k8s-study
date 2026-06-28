@@ -1,0 +1,13 @@
+# 동적 프로비저닝 PVC — 기본 StorageClass가 PV를 자동 생성한다
+# 📖 PVC: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-demo
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  # storageClassName 생략 → 기본 StorageClass(kind: standard) 사용
